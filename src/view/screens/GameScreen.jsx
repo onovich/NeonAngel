@@ -21,6 +21,8 @@ export function GameScreen() {
         maxHp={snapshot.maxHp}
         score={snapshot.score}
         energy={snapshot.energy}
+        weaponName={snapshot.weaponName}
+        weaponLevel={snapshot.weaponLevel}
         onUseUltimate={useUltimate}
       />
       <StartMenu hidden={snapshot.screen !== 'menu'} onStart={startGame} />

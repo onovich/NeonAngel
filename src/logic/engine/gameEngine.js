@@ -1,5 +1,7 @@
-import { COLORS, GAME_CONFIG, INITIAL_SNAPSHOT } from '../../data/gameConfig.js';
+import { COLORS, GAME_CONFIG, INITIAL_SNAPSHOT, WEAPON_DEFS } from '../../data/gameConfig.js';
 import { clamp, dist, rand } from './math.js';
+
+const WEAPON_ORDER = ['lance', 'spread', 'pulse'];
 
 function drawCircle(ctx, x, y, radius, color, blur = 0, shadowColor = null) {
   ctx.beginPath();
@@ -87,15 +89,31 @@ class Player {
     this.fireTimer -= dt;
     if (this.fireTimer <= 0) {
       this.fire();
-      this.fireTimer = GAME_CONFIG.player.fireRateMs;
+      this.fireTimer = this.engine.getCurrentWeaponProfile().rateMs;
     }
 
     this.energy = clamp(this.energy, 0, GAME_CONFIG.scoring.maxEnergy);
   }
 
   fire() {
-    this.engine.playerBullets.push(new PlayerBullet(this.engine, this.x - 8, this.y - 10, 0, -GAME_CONFIG.player.bulletSpeed));
-    this.engine.playerBullets.push(new PlayerBullet(this.engine, this.x + 8, this.y - 10, 0, -GAME_CONFIG.player.bulletSpeed));
+    const weaponProfile = this.engine.getCurrentWeaponProfile();
+
+    weaponProfile.bullets.forEach((bulletPattern) => {
+      const speed = bulletPattern.speed ?? weaponProfile.speed;
+      const angle = bulletPattern.angle ?? 0;
+      const vx = Math.sin(angle) * speed;
+      const vy = -Math.cos(angle) * speed;
+      this.engine.playerBullets.push(new PlayerBullet(this.engine, {
+        x: this.x + bulletPattern.offsetX,
+        y: this.y - 10,
+        vx,
+        vy,
+        radius: bulletPattern.radius ?? weaponProfile.radius,
+        damage: bulletPattern.damage ?? weaponProfile.damage,
+        pierce: bulletPattern.pierce ?? weaponProfile.pierce,
+        color: weaponProfile.color,
+      }));
+    });
   }
 
   takeDamage(amount) {
@@ -137,23 +155,25 @@ class Player {
 }
 
 class PlayerBullet {
-  constructor(engine, x, y, vx, vy) {
+  constructor(engine, { x, y, vx, vy, radius, damage, pierce, color }) {
     this.engine = engine;
     this.x = x;
     this.y = y;
     this.vx = vx;
     this.vy = vy;
-    this.r = 6;
+    this.r = radius;
     this.birth = Date.now();
     this.canCancel = engine.player.hp >= engine.player.maxHp;
-    this.damage = GAME_CONFIG.player.bulletDamage;
+    this.damage = damage;
+    this.pierce = pierce;
+    this.color = color;
     this.dead = false;
   }
 
   update(dt) {
     this.x += this.vx * (dt / 16);
     this.y += this.vy * (dt / 16);
-    if (this.y < -50) {
+    if (this.y < -80 || this.x < -80 || this.x > this.engine.width + 80) {
       this.dead = true;
     }
   }
@@ -165,15 +185,20 @@ class PlayerBullet {
       && this.engine.player.hp >= this.engine.player.maxHp;
 
     ctx.beginPath();
-    ctx.roundRect(this.x - 3, this.y - 8, 6, 16, 4);
 
     if (isCancelingActive) {
       ctx.fillStyle = '#ffffff';
       ctx.shadowBlur = 15;
-      ctx.shadowColor = COLORS.playerBullet;
+      ctx.shadowColor = this.color;
     } else {
-      ctx.fillStyle = COLORS.playerBullet;
+      ctx.fillStyle = this.color;
       ctx.shadowBlur = 0;
+    }
+
+    if (this.r >= 9) {
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    } else {
+      ctx.roundRect(this.x - this.r * 0.45, this.y - this.r * 1.4, this.r * 0.9, this.r * 2.8, this.r * 0.6);
     }
 
     ctx.fill();
@@ -217,11 +242,11 @@ class Enemy {
     switch (type) {
       case 'minion':
         this.r = 18;
-        this.hp = 20;
-        this.maxHp = 20;
+        this.hp = 26;
+        this.maxHp = 26;
         this.color = COLORS.enemyMinion;
-        this.vy = rand(1, 2.5);
-        this.vx = rand(-0.5, 0.5);
+        this.vy = rand(1.6, 3);
+        this.vx = rand(-0.9, 0.9);
         this.scoreValue = 10;
         break;
       case 'obstacle':
@@ -237,17 +262,17 @@ class Enemy {
         break;
       case 'elite':
         this.r = 25;
-        this.hp = 150;
-        this.maxHp = 150;
+        this.hp = 190;
+        this.maxHp = 190;
         this.color = COLORS.enemyElite;
-        this.vy = 1;
-        this.vx = rand(-1, 1);
-        this.scoreValue = 50;
+        this.vy = 1.4;
+        this.vx = rand(-1.4, 1.4);
+        this.scoreValue = 80;
         break;
       case 'boss':
         this.r = 60;
-        this.hp = 3000;
-        this.maxHp = 3000;
+        this.hp = 3600;
+        this.maxHp = 3600;
         this.color = COLORS.enemyBoss;
         this.vy = 0;
         this.vx = 2;
@@ -452,6 +477,20 @@ class GameEngine {
     this.frameCount = 0;
     this.levelTime = 0;
     this.score = 0;
+    this.arsenal = {
+      currentWeapon: 'lance',
+      rewardCursor: 1,
+      unlocked: {
+        lance: true,
+        spread: false,
+        pulse: false,
+      },
+      levels: {
+        lance: 0,
+        spread: 0,
+        pulse: 0,
+      },
+    };
     this.input = {
       keyboard: {
         up: false,
@@ -665,6 +704,7 @@ class GameEngine {
   }
 
   emitSnapshot() {
+    const currentWeapon = this.getCurrentWeaponState();
     this.onSnapshot({
       screen: this.screen,
       hp: this.player.hp,
@@ -672,7 +712,46 @@ class GameEngine {
       score: this.score,
       energy: this.player.energy,
       finalScore: this.finalScore,
+      weaponName: currentWeapon.label,
+      weaponLevel: currentWeapon.level,
     });
+  }
+
+  getCurrentWeaponState() {
+    const weaponId = this.arsenal.currentWeapon;
+    return {
+      id: weaponId,
+      label: WEAPON_DEFS[weaponId].label,
+      level: this.arsenal.levels[weaponId],
+      unlocked: this.arsenal.unlocked[weaponId],
+    };
+  }
+
+  getCurrentWeaponProfile() {
+    const weaponState = this.getCurrentWeaponState();
+    const weaponDef = WEAPON_DEFS[weaponState.id];
+    const level = clamp(weaponState.level, 0, weaponDef.levels.length - 1);
+    return {
+      ...weaponDef.levels[level],
+      color: weaponDef.color,
+      label: weaponDef.label,
+      level,
+    };
+  }
+
+  rewardEliteKill() {
+    const targetWeaponId = WEAPON_ORDER[this.arsenal.rewardCursor];
+    this.arsenal.rewardCursor = (this.arsenal.rewardCursor + 1) % WEAPON_ORDER.length;
+    this.arsenal.currentWeapon = targetWeaponId;
+
+    if (!this.arsenal.unlocked[targetWeaponId]) {
+      this.arsenal.unlocked[targetWeaponId] = true;
+      this.arsenal.levels[targetWeaponId] = 1;
+      return;
+    }
+
+    const maxLevel = WEAPON_DEFS[targetWeaponId].levels.length - 1;
+    this.arsenal.levels[targetWeaponId] = Math.min(maxLevel, this.arsenal.levels[targetWeaponId] + 1);
   }
 
   triggerShake(duration) {
@@ -698,6 +777,14 @@ class GameEngine {
     this.finalScore = 0;
     this.frameCount = 0;
     this.levelTime = 0;
+    this.arsenal.currentWeapon = 'lance';
+    this.arsenal.rewardCursor = 1;
+    this.arsenal.unlocked.lance = true;
+    this.arsenal.unlocked.spread = false;
+    this.arsenal.unlocked.pulse = false;
+    this.arsenal.levels.lance = 0;
+    this.arsenal.levels.spread = 0;
+    this.arsenal.levels.pulse = 0;
     this.input.keyboard.up = false;
     this.input.keyboard.down = false;
     this.input.keyboard.left = false;
@@ -862,7 +949,7 @@ class GameEngine {
       }
 
       if (dist(this.player, enemyBullet) < this.player.r * 0.6 + enemyBullet.r) {
-        this.player.takeDamage(10);
+        this.player.takeDamage(GAME_CONFIG.combat.bulletHitDamage);
         this.enemyBullets.splice(i, 1);
       }
     }
@@ -882,7 +969,11 @@ class GameEngine {
         if (enemy.type !== 'obstacle' && dist(playerBullet, enemy) < playerBullet.r + enemy.r) {
           enemy.hp -= playerBullet.damage;
           this.createParticles(playerBullet.x, playerBullet.y, enemy.color, 2);
-          this.playerBullets.splice(j, 1);
+          if (playerBullet.pierce > 0) {
+            playerBullet.pierce -= 1;
+          } else {
+            this.playerBullets.splice(j, 1);
+          }
           if (enemy.hp <= 0) {
             enemy.dead = true;
             break;
@@ -891,7 +982,7 @@ class GameEngine {
       }
 
       if (dist(this.player, enemy) < this.player.r + enemy.r) {
-        this.player.takeDamage(20);
+        this.player.takeDamage(GAME_CONFIG.combat.bodyHitDamage);
         if (enemy.type === 'minion') {
           enemy.dead = true;
         }
@@ -901,6 +992,9 @@ class GameEngine {
         this.createParticles(enemy.x, enemy.y, enemy.color, enemy.type === 'boss' ? 50 : 10);
         this.score += enemy.scoreValue;
         this.player.energy += enemy.type === 'boss' ? GAME_CONFIG.scoring.bossKillEnergy : GAME_CONFIG.scoring.normalKillEnergy;
+        if (enemy.type === 'elite') {
+          this.rewardEliteKill();
+        }
         this.applyDropRewards(enemy);
         this.enemies.splice(i, 1);
         this.emitSnapshot();

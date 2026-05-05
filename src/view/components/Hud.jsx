@@ -1,4 +1,4 @@
-export function Hud({ hp, maxHp, score, energy, onUseUltimate }) {
+export function Hud({ hp, maxHp, score, energy, weaponName, weaponLevel, onUseUltimate }) {
   const hpRatio = Math.max(0, (hp / maxHp) * 100);
   const fullSlots = Math.floor(energy / 100);
   const hpClassName = hp >= maxHp
@@ -17,6 +17,9 @@ export function Hud({ hp, maxHp, score, energy, onUseUltimate }) {
           </div>
           <div className="mt-2 text-xs font-bold uppercase tracking-wider text-gray-400">
             Score: <span className="text-lg text-gray-700">{score}</span>
+          </div>
+          <div className="mt-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+            Weapon: <span className="text-sm text-gray-700">{weaponName} Lv.{weaponLevel}</span>
           </div>
         </div>
 
