@@ -61,9 +61,20 @@ class Player {
       }
     }
 
-    if (input.active) {
-      this.x += (input.x - this.x) * 0.2;
-      this.y += (input.y - this.y) * 0.2;
+    if (input.touch.active) {
+      const deltaX = input.touch.currentX - input.touch.startX;
+      const deltaY = input.touch.currentY - input.touch.startY;
+      const drift = Math.hypot(deltaX, deltaY);
+
+      if (drift > GAME_CONFIG.player.touchDeadzone) {
+        const normalizedX = deltaX / drift;
+        const normalizedY = deltaY / drift;
+        const intensity = clamp(drift / GAME_CONFIG.player.touchMaxDrift, 0, 1);
+        const speed = GAME_CONFIG.player.touchSpeed * intensity * (dt / 16);
+
+        this.x += normalizedX * speed;
+        this.y += normalizedY * speed;
+      }
     }
 
     this.x = clamp(this.x, this.r, width - this.r);
@@ -442,15 +453,20 @@ class GameEngine {
     this.levelTime = 0;
     this.score = 0;
     this.input = {
-      x: -100,
-      y: -100,
-      active: false,
       keyboard: {
         up: false,
         down: false,
         left: false,
         right: false,
         active: false,
+      },
+      touch: {
+        active: false,
+        identifier: null,
+        startX: 0,
+        startY: 0,
+        currentX: 0,
+        currentY: 0,
       },
     };
     this.player = new Player(this);
@@ -463,7 +479,9 @@ class GameEngine {
     this.shakeTimeout = null;
 
     this.handleResize = this.handleResize.bind(this);
-    this.handleMove = this.handleMove.bind(this);
+    this.handleTouchStart = this.handleTouchStart.bind(this);
+    this.handleTouchMove = this.handleTouchMove.bind(this);
+    this.handleTouchEnd = this.handleTouchEnd.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handleKeyUp = this.handleKeyUp.bind(this);
     this.loop = this.loop.bind(this);
@@ -478,18 +496,20 @@ class GameEngine {
     window.addEventListener('resize', this.handleResize);
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
-    this.container.addEventListener('mousemove', this.handleMove);
-    this.container.addEventListener('touchmove', this.handleMove, { passive: false });
-    this.container.addEventListener('touchstart', this.handleMove, { passive: false });
+    this.container.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+    this.container.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+    this.container.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+    this.container.addEventListener('touchcancel', this.handleTouchEnd, { passive: false });
   }
 
   destroy() {
     window.removeEventListener('resize', this.handleResize);
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
-    this.container.removeEventListener('mousemove', this.handleMove);
-    this.container.removeEventListener('touchmove', this.handleMove);
-    this.container.removeEventListener('touchstart', this.handleMove);
+    this.container.removeEventListener('touchstart', this.handleTouchStart);
+    this.container.removeEventListener('touchmove', this.handleTouchMove);
+    this.container.removeEventListener('touchend', this.handleTouchEnd);
+    this.container.removeEventListener('touchcancel', this.handleTouchEnd);
     if (this.reqId) {
       cancelAnimationFrame(this.reqId);
     }
@@ -503,20 +523,66 @@ class GameEngine {
     this.height = this.canvas.height = window.innerHeight;
   }
 
-  handleMove(event) {
+  getTrackedTouch(event) {
+    if (this.input.touch.identifier === null) {
+      return event.touches[0] || event.changedTouches[0] || null;
+    }
+
+    return [...event.touches, ...event.changedTouches].find((touch) => touch.identifier === this.input.touch.identifier) || null;
+  }
+
+  handleTouchStart(event) {
     if (event.cancelable) {
       event.preventDefault();
     }
-    this.input.active = true;
 
-    if (event.touches && event.touches[0]) {
-      this.input.x = event.touches[0].clientX;
-      this.input.y = event.touches[0].clientY;
+    if (this.input.touch.active) {
       return;
     }
 
-    this.input.x = event.clientX;
-    this.input.y = event.clientY;
+    const touch = event.touches[0];
+    if (!touch) {
+      return;
+    }
+
+    this.input.touch.active = true;
+    this.input.touch.identifier = touch.identifier;
+    this.input.touch.startX = touch.clientX;
+    this.input.touch.startY = touch.clientY;
+    this.input.touch.currentX = touch.clientX;
+    this.input.touch.currentY = touch.clientY;
+  }
+
+  handleTouchMove(event) {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+
+    const touch = this.getTrackedTouch(event);
+    if (!touch || !this.input.touch.active) {
+      return;
+    }
+
+    this.input.touch.currentX = touch.clientX;
+    this.input.touch.currentY = touch.clientY;
+  }
+
+  handleTouchEnd(event) {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+
+    const touch = this.getTrackedTouch(event);
+    if (!touch) {
+      return;
+    }
+
+    this.input.touch.active = false;
+    this.input.touch.identifier = null;
+    this.input.touch.startX = 0;
+    this.input.touch.startY = 0;
+    this.input.touch.currentX = 0;
+    this.input.touch.currentY = 0;
   }
 
   handleKeyDown(event) {
@@ -565,7 +631,6 @@ class GameEngine {
     }
 
     event.preventDefault();
-    this.input.active = false;
     this.input.keyboard.active = true;
   }
 
@@ -633,25 +698,29 @@ class GameEngine {
     this.finalScore = 0;
     this.frameCount = 0;
     this.levelTime = 0;
-    this.input.active = false;
     this.input.keyboard.up = false;
     this.input.keyboard.down = false;
     this.input.keyboard.left = false;
     this.input.keyboard.right = false;
     this.input.keyboard.active = false;
+    this.input.touch.active = false;
+    this.input.touch.identifier = null;
+    this.input.touch.startX = 0;
+    this.input.touch.startY = 0;
+    this.input.touch.currentX = 0;
+    this.input.touch.currentY = 0;
     this.emitSnapshot();
   }
 
   startGame() {
     this.screen = 'playing';
-    this.input.active = false;
     this.resetGameState();
   }
 
   gameOver() {
     this.screen = 'over';
     this.finalScore = this.score;
-    this.input.active = false;
+    this.input.touch.active = false;
     this.emitSnapshot();
   }
 
