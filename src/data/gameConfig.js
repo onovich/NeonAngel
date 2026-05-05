@@ -16,6 +16,7 @@ export const GAME_CONFIG = {
   player: {
     radius: 16,
     maxHp: 100,
+    keyboardSpeed: 7.5,
     fireRateMs: 120,
     invincibleMs: 1000,
     ultimateInvincibleMs: 3000,

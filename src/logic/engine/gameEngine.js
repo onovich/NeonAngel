@@ -49,12 +49,25 @@ class Player {
   update(dt) {
     const { input, width, height } = this.engine;
 
+    if (input.keyboard.active) {
+      const horizontal = Number(input.keyboard.right) - Number(input.keyboard.left);
+      const vertical = Number(input.keyboard.down) - Number(input.keyboard.up);
+      const magnitude = Math.hypot(horizontal, vertical) || 1;
+      const speed = GAME_CONFIG.player.keyboardSpeed * (dt / 16);
+
+      if (horizontal !== 0 || vertical !== 0) {
+        this.x += (horizontal / magnitude) * speed;
+        this.y += (vertical / magnitude) * speed;
+      }
+    }
+
     if (input.active) {
       this.x += (input.x - this.x) * 0.2;
       this.y += (input.y - this.y) * 0.2;
-      this.x = clamp(this.x, this.r, width - this.r);
-      this.y = clamp(this.y, this.r, height - this.r);
     }
+
+    this.x = clamp(this.x, this.r, width - this.r);
+    this.y = clamp(this.y, this.r, height - this.r);
 
     if (this.invincibleTime > 0) {
       this.invincibleTime -= dt;
@@ -428,7 +441,18 @@ class GameEngine {
     this.frameCount = 0;
     this.levelTime = 0;
     this.score = 0;
-    this.input = { x: -100, y: -100, active: false };
+    this.input = {
+      x: -100,
+      y: -100,
+      active: false,
+      keyboard: {
+        up: false,
+        down: false,
+        left: false,
+        right: false,
+        active: false,
+      },
+    };
     this.player = new Player(this);
     this.playerBullets = [];
     this.enemies = [];
@@ -440,6 +464,8 @@ class GameEngine {
 
     this.handleResize = this.handleResize.bind(this);
     this.handleMove = this.handleMove.bind(this);
+    this.handleKeyDown = this.handleKeyDown.bind(this);
+    this.handleKeyUp = this.handleKeyUp.bind(this);
     this.loop = this.loop.bind(this);
 
     this.bind();
@@ -450,6 +476,8 @@ class GameEngine {
 
   bind() {
     window.addEventListener('resize', this.handleResize);
+    window.addEventListener('keydown', this.handleKeyDown);
+    window.addEventListener('keyup', this.handleKeyUp);
     this.container.addEventListener('mousemove', this.handleMove);
     this.container.addEventListener('touchmove', this.handleMove, { passive: false });
     this.container.addEventListener('touchstart', this.handleMove, { passive: false });
@@ -457,6 +485,8 @@ class GameEngine {
 
   destroy() {
     window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('keyup', this.handleKeyUp);
     this.container.removeEventListener('mousemove', this.handleMove);
     this.container.removeEventListener('touchmove', this.handleMove);
     this.container.removeEventListener('touchstart', this.handleMove);
@@ -487,6 +517,86 @@ class GameEngine {
 
     this.input.x = event.clientX;
     this.input.y = event.clientY;
+  }
+
+  handleKeyDown(event) {
+    const key = event.key.toLowerCase();
+
+    if (key === 'enter') {
+      event.preventDefault();
+      if (this.screen === 'menu') {
+        this.startGame();
+      } else if (this.screen === 'over') {
+        this.startGame();
+      }
+      return;
+    }
+
+    if (key === ' ' || key === 'spacebar') {
+      event.preventDefault();
+      this.useUltimate();
+      return;
+    }
+
+    let handled = true;
+    switch (key) {
+      case 'w':
+      case 'arrowup':
+        this.input.keyboard.up = true;
+        break;
+      case 's':
+      case 'arrowdown':
+        this.input.keyboard.down = true;
+        break;
+      case 'a':
+      case 'arrowleft':
+        this.input.keyboard.left = true;
+        break;
+      case 'd':
+      case 'arrowright':
+        this.input.keyboard.right = true;
+        break;
+      default:
+        handled = false;
+    }
+
+    if (!handled) {
+      return;
+    }
+
+    event.preventDefault();
+    this.input.active = false;
+    this.input.keyboard.active = true;
+  }
+
+  handleKeyUp(event) {
+    const key = event.key.toLowerCase();
+
+    switch (key) {
+      case 'w':
+      case 'arrowup':
+        this.input.keyboard.up = false;
+        break;
+      case 's':
+      case 'arrowdown':
+        this.input.keyboard.down = false;
+        break;
+      case 'a':
+      case 'arrowleft':
+        this.input.keyboard.left = false;
+        break;
+      case 'd':
+      case 'arrowright':
+        this.input.keyboard.right = false;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    this.input.keyboard.active = Object.values(this.input.keyboard)
+      .slice(0, 4)
+      .some(Boolean);
   }
 
   emitSnapshot() {
@@ -523,6 +633,12 @@ class GameEngine {
     this.finalScore = 0;
     this.frameCount = 0;
     this.levelTime = 0;
+    this.input.active = false;
+    this.input.keyboard.up = false;
+    this.input.keyboard.down = false;
+    this.input.keyboard.left = false;
+    this.input.keyboard.right = false;
+    this.input.keyboard.active = false;
     this.emitSnapshot();
   }
 
