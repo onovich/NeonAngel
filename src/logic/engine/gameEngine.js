@@ -3,6 +3,40 @@ import { clamp, dist, rand } from './math.js';
 
 const WEAPON_ORDER = ['lance', 'spread', 'pulse'];
 
+class HitRipple {
+  constructor(x, y, color, maxRadius, lineWidth = 6) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.radius = 6;
+    this.maxRadius = maxRadius;
+    this.lineWidth = lineWidth;
+    this.life = 1;
+  }
+
+  update(dt) {
+    this.radius += 0.45 * dt;
+    this.life -= dt * 0.0035;
+  }
+
+  draw(ctx) {
+    ctx.globalAlpha = Math.max(0, this.life);
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = this.lineWidth;
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = this.color;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  get dead() {
+    return this.life <= 0 || this.radius >= this.maxRadius;
+  }
+}
+
 function drawCircle(ctx, x, y, radius, color, blur = 0, shadowColor = null) {
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -408,14 +442,14 @@ class Drop {
 }
 
 class Particle {
-  constructor(x, y, color) {
+  constructor(x, y, color, options = {}) {
     this.x = x;
     this.y = y;
-    this.vx = rand(-5, 5);
-    this.vy = rand(-5, 5);
-    this.life = 1;
+    this.vx = options.vx ?? rand(-5, 5);
+    this.vy = options.vy ?? rand(-5, 5);
+    this.life = options.life ?? 1;
     this.color = color;
-    this.r = rand(2, 5);
+    this.r = options.radius ?? rand(2, 5);
   }
 
   update(dt) {
@@ -492,6 +526,7 @@ class GameEngine {
       },
     };
     this.weaponToast = null;
+    this.pendingReward = null;
     this.input = {
       keyboard: {
         up: false,
@@ -515,6 +550,7 @@ class GameEngine {
     this.enemyBullets = [];
     this.drops = [];
     this.particles = [];
+    this.hitRipples = [];
     this.ultWaves = [];
     this.shakeTimeout = null;
 
@@ -630,12 +666,44 @@ class GameEngine {
 
     if (key === 'enter') {
       event.preventDefault();
+      if (this.pendingReward) {
+        this.confirmRewardSelection();
+        return;
+      }
       if (this.screen === 'menu') {
         this.startGame();
       } else if (this.screen === 'over') {
         this.startGame();
       }
       return;
+    }
+
+    if (this.pendingReward) {
+      if (key === '1') {
+        event.preventDefault();
+        this.selectRewardOption(0);
+        return;
+      }
+
+      if (key === '2') {
+        event.preventDefault();
+        this.selectRewardOption(1);
+        return;
+      }
+
+      if (key === 'q' || key === 'arrowleft') {
+        event.preventDefault();
+        this.pendingReward.selectionIndex = 0;
+        this.emitSnapshot();
+        return;
+      }
+
+      if (key === 'e' || key === 'arrowright') {
+        event.preventDefault();
+        this.pendingReward.selectionIndex = 1;
+        this.emitSnapshot();
+        return;
+      }
     }
 
     if (key === ' ' || key === 'spacebar') {
@@ -716,7 +784,110 @@ class GameEngine {
       weaponName: currentWeapon.label,
       weaponLevel: currentWeapon.level,
       weaponToast: this.weaponToast,
+      rewardOptions: this.pendingReward?.options ?? null,
+      rewardSelection: this.pendingReward?.selectionIndex ?? 0,
     });
+  }
+
+  buildRewardOption(weaponId) {
+    const weaponDef = WEAPON_DEFS[weaponId];
+    const currentLevel = this.arsenal.levels[weaponId];
+    const maxLevel = weaponDef.levels.length - 1;
+
+    if (!this.arsenal.unlocked[weaponId]) {
+      return {
+        kind: 'unlock',
+        weaponId,
+        title: `${weaponDef.label} Unlock`,
+        detail: `Switch to ${weaponDef.label} and start at Lv.1`,
+      };
+    }
+
+    if (currentLevel < maxLevel) {
+      return {
+        kind: 'upgrade',
+        weaponId,
+        title: `${weaponDef.label} Upgrade`,
+        detail: `Raise to Lv.${currentLevel + 1}`,
+      };
+    }
+
+    return {
+      kind: 'overdrive',
+      weaponId,
+      title: `${weaponDef.label} Overdrive`,
+      detail: 'Recover 12 HP and gain 35 energy',
+    };
+  }
+
+  queueEliteReward() {
+    const currentWeaponId = this.arsenal.currentWeapon;
+    const candidates = WEAPON_ORDER
+      .map((weaponId) => ({
+        weaponId,
+        score: (!this.arsenal.unlocked[weaponId] ? 100 : 0)
+          + (weaponId !== currentWeaponId ? 20 : 0)
+          + (WEAPON_DEFS[weaponId].levels.length - 1 - this.arsenal.levels[weaponId]) * 10,
+      }))
+      .sort((left, right) => right.score - left.score)
+      .map((entry) => entry.weaponId);
+
+    const optionWeaponIds = [];
+    for (const weaponId of candidates) {
+      if (!optionWeaponIds.includes(weaponId)) {
+        optionWeaponIds.push(weaponId);
+      }
+      if (optionWeaponIds.length === 2) {
+        break;
+      }
+    }
+
+    this.pendingReward = {
+      options: optionWeaponIds.map((weaponId) => this.buildRewardOption(weaponId)),
+      selectionIndex: 0,
+    };
+    this.player.invincibleTime = Math.max(this.player.invincibleTime, GAME_CONFIG.feedback.rewardPauseInvincibleMs);
+    this.emitSnapshot();
+  }
+
+  applyRewardOption(option) {
+    const weaponDef = WEAPON_DEFS[option.weaponId];
+    this.arsenal.currentWeapon = option.weaponId;
+
+    if (option.kind === 'unlock') {
+      this.arsenal.unlocked[option.weaponId] = true;
+      this.arsenal.levels[option.weaponId] = 1;
+      this.triggerWeaponToast('Weapon Shift', `${weaponDef.label} unlocked`);
+      return;
+    }
+
+    if (option.kind === 'upgrade') {
+      this.arsenal.levels[option.weaponId] += 1;
+      this.triggerWeaponToast('Weapon Upgrade', `${weaponDef.label} Lv.${this.arsenal.levels[option.weaponId]}`);
+      return;
+    }
+
+    this.player.heal(12);
+    this.player.energy = clamp(this.player.energy + 35, 0, GAME_CONFIG.scoring.maxEnergy);
+    this.triggerWeaponToast('Weapon Overdrive', `${weaponDef.label} surge`);
+  }
+
+  selectRewardOption(index) {
+    if (!this.pendingReward) {
+      return;
+    }
+    this.pendingReward.selectionIndex = clamp(index, 0, this.pendingReward.options.length - 1);
+    this.emitSnapshot();
+  }
+
+  confirmRewardSelection() {
+    if (!this.pendingReward) {
+      return;
+    }
+    const option = this.pendingReward.options[this.pendingReward.selectionIndex];
+    this.pendingReward = null;
+    this.applyRewardOption(option);
+    this.emitSnapshot();
   }
 
   getDifficultyPressure() {
@@ -755,30 +926,6 @@ class GameEngine {
     };
   }
 
-  rewardEliteKill() {
-    const targetWeaponId = WEAPON_ORDER[this.arsenal.rewardCursor];
-    this.arsenal.rewardCursor = (this.arsenal.rewardCursor + 1) % WEAPON_ORDER.length;
-    this.arsenal.currentWeapon = targetWeaponId;
-    const weaponLabel = WEAPON_DEFS[targetWeaponId].label;
-
-    if (!this.arsenal.unlocked[targetWeaponId]) {
-      this.arsenal.unlocked[targetWeaponId] = true;
-      this.arsenal.levels[targetWeaponId] = 1;
-      this.triggerWeaponToast('Weapon Shift', `${weaponLabel} unlocked`);
-      return;
-    }
-
-    const maxLevel = WEAPON_DEFS[targetWeaponId].levels.length - 1;
-    this.arsenal.levels[targetWeaponId] = Math.min(maxLevel, this.arsenal.levels[targetWeaponId] + 1);
-    const level = this.arsenal.levels[targetWeaponId];
-    if (level >= maxLevel) {
-      this.triggerWeaponToast('Weapon Maxed', `${weaponLabel} Lv.${level}`);
-      return;
-    }
-
-    this.triggerWeaponToast('Weapon Upgrade', `${weaponLabel} Lv.${level}`);
-  }
-
   triggerShake(duration) {
     this.container.classList.add('shake');
     if (this.shakeTimeout) {
@@ -803,8 +950,8 @@ class GameEngine {
     this.frameCount = 0;
     this.levelTime = 0;
     this.weaponToast = null;
+    this.pendingReward = null;
     this.arsenal.currentWeapon = 'lance';
-    this.arsenal.rewardCursor = 1;
     this.arsenal.unlocked.lance = true;
     this.arsenal.unlocked.spread = false;
     this.arsenal.unlocked.pulse = false;
@@ -838,7 +985,7 @@ class GameEngine {
   }
 
   useUltimate() {
-    if (this.screen !== 'playing' || this.player.energy < GAME_CONFIG.ultimate.cost) {
+    if (this.screen !== 'playing' || this.pendingReward || this.player.energy < GAME_CONFIG.ultimate.cost) {
       return;
     }
 
@@ -853,6 +1000,49 @@ class GameEngine {
     for (let i = 0; i < count; i += 1) {
       this.particles.push(new Particle(x, y, color));
     }
+  }
+
+  createBloomHitEffect(bullet, enemy) {
+    const baseAngle = Math.atan2(bullet.vy, bullet.vx);
+    for (let i = -3; i <= 3; i += 1) {
+      const angle = baseAngle + i * 0.22;
+      const speed = 2.4 + Math.abs(i) * 0.45;
+      this.particles.push(new Particle(enemy.x, enemy.y, bullet.color, {
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: rand(2, 4),
+        life: 0.85,
+      }));
+    }
+  }
+
+  createPulseHitEffect(bullet, enemy) {
+    this.hitRipples.push(new HitRipple(enemy.x, enemy.y, bullet.color, 42, 5));
+    for (let i = 0; i < 6; i += 1) {
+      const angle = (i / 6) * Math.PI * 2;
+      const speed = 2.1 + rand(0.2, 1.1);
+      this.particles.push(new Particle(enemy.x, enemy.y, bullet.color, {
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: rand(2, 3),
+        life: 0.75,
+      }));
+    }
+  }
+
+  createWeaponHitEffect(bullet, enemy) {
+    const currentWeaponId = this.arsenal.currentWeapon;
+    if (currentWeaponId === 'spread') {
+      this.createBloomHitEffect(bullet, enemy);
+      return;
+    }
+
+    if (currentWeaponId === 'pulse') {
+      this.createPulseHitEffect(bullet, enemy);
+      return;
+    }
+
+    this.createParticles(bullet.x, bullet.y, enemy.color, 2);
   }
 
   spawnLogic() {
@@ -915,6 +1105,14 @@ class GameEngine {
 
   updateGame(dt) {
     if (this.screen !== 'playing') {
+      return;
+    }
+
+    if (this.pendingReward) {
+      if (this.weaponToast && Date.now() >= this.weaponToast.expiresAt) {
+        this.weaponToast = null;
+        this.emitSnapshot();
+      }
       return;
     }
 
@@ -1012,7 +1210,7 @@ class GameEngine {
         const playerBullet = this.playerBullets[j];
         if (enemy.type !== 'obstacle' && dist(playerBullet, enemy) < playerBullet.r + enemy.r) {
           enemy.hp -= playerBullet.damage;
-          this.createParticles(playerBullet.x, playerBullet.y, enemy.color, 2);
+          this.createWeaponHitEffect(playerBullet, enemy);
           if (playerBullet.pierce > 0) {
             playerBullet.pierce -= 1;
           } else {
@@ -1037,7 +1235,7 @@ class GameEngine {
         this.score += enemy.scoreValue;
         this.player.energy += enemy.type === 'boss' ? GAME_CONFIG.scoring.bossKillEnergy : GAME_CONFIG.scoring.normalKillEnergy;
         if (enemy.type === 'elite') {
-          this.rewardEliteKill();
+          this.queueEliteReward();
         }
         this.applyDropRewards(enemy);
         this.enemies.splice(i, 1);
@@ -1049,6 +1247,13 @@ class GameEngine {
       this.particles[i].update(dt);
       if (this.particles[i].life <= 0) {
         this.particles.splice(i, 1);
+      }
+    }
+
+    for (let i = this.hitRipples.length - 1; i >= 0; i -= 1) {
+      this.hitRipples[i].update(dt);
+      if (this.hitRipples[i].dead) {
+        this.hitRipples.splice(i, 1);
       }
     }
   }
@@ -1077,6 +1282,7 @@ class GameEngine {
     }
 
     this.particles.forEach((particle) => particle.draw(ctx));
+    this.hitRipples.forEach((ripple) => ripple.draw(ctx));
     this.drops.forEach((drop) => drop.draw(ctx));
     this.enemies.forEach((enemy) => enemy.draw(ctx));
     this.enemyBullets.forEach((enemyBullet) => enemyBullet.draw(ctx));

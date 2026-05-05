@@ -1,4 +1,17 @@
-export function Hud({ hp, maxHp, score, energy, weaponName, weaponLevel, weaponToast, onUseUltimate }) {
+export function Hud({
+  hp,
+  maxHp,
+  score,
+  energy,
+  weaponName,
+  weaponLevel,
+  weaponToast,
+  rewardOptions,
+  rewardSelection,
+  onRewardSelect,
+  onRewardConfirm,
+  onUseUltimate,
+}) {
   const hpRatio = Math.max(0, (hp / maxHp) * 100);
   const fullSlots = Math.floor(energy / 100);
   const hpClassName = hp >= maxHp
@@ -13,6 +26,42 @@ export function Hud({ hp, maxHp, score, energy, weaponName, weaponLevel, weaponT
         <div className="weapon-toast absolute left-1/2 top-24 -translate-x-1/2 rounded-full border border-white/60 bg-white/80 px-5 py-3 text-center backdrop-blur-md hud-shadow">
           <div className="text-[10px] font-black uppercase tracking-[0.35em] text-[#9A8C98]">{weaponToast.title}</div>
           <div className="mt-1 text-sm font-bold text-gray-700">{weaponToast.detail}</div>
+        </div>
+      ) : null}
+
+      {rewardOptions ? (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#F8F9FA]/70 backdrop-blur-sm pointer-events-auto">
+          <div className="w-[min(92vw,42rem)] rounded-[2rem] border border-white/60 bg-white/85 p-5 hud-shadow">
+            <div className="text-center">
+              <div className="text-[11px] font-black uppercase tracking-[0.35em] text-[#9A8C98]">Elite Reward</div>
+              <div className="mt-2 text-xl font-black text-gray-800">Choose one upgrade</div>
+              <div className="mt-1 text-sm font-bold text-gray-500">Keyboard: `1` / `2`, `Q` / `E`, `Enter`</div>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {rewardOptions.map((option, index) => (
+                <button
+                  key={`${option.weaponId}-${option.kind}`}
+                  type="button"
+                  onClick={() => onRewardSelect(index)}
+                  onDoubleClick={onRewardConfirm}
+                  className={`rounded-[1.5rem] border px-4 py-4 text-left transition ${rewardSelection === index ? 'border-[#9BF6FF] bg-[#9BF6FF]/15 shadow-[0_0_0_4px_rgba(155,246,255,0.18)]' : 'border-white/60 bg-white/70 hover:bg-white'}`}
+                >
+                  <div className="text-[11px] font-black uppercase tracking-[0.25em] text-[#9A8C98]">Option {index + 1}</div>
+                  <div className="mt-2 text-lg font-black text-gray-800">{option.title}</div>
+                  <div className="mt-2 text-sm font-bold leading-6 text-gray-500">{option.detail}</div>
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={onRewardConfirm}
+                className="btn-glass rounded-full px-7 py-3 text-sm font-black uppercase tracking-[0.2em] text-gray-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 

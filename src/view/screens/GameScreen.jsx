@@ -10,6 +10,8 @@ export function GameScreen() {
     snapshot,
     startGame,
     restartGame,
+    selectRewardOption,
+    confirmRewardSelection,
     useUltimate,
   } = useGameRuntime();
 
@@ -24,6 +26,10 @@ export function GameScreen() {
         weaponName={snapshot.weaponName}
         weaponLevel={snapshot.weaponLevel}
         weaponToast={snapshot.weaponToast}
+        rewardOptions={snapshot.rewardOptions}
+        rewardSelection={snapshot.rewardSelection}
+        onRewardSelect={selectRewardOption}
+        onRewardConfirm={confirmRewardSelection}
         onUseUltimate={useUltimate}
       />
       <StartMenu hidden={snapshot.screen !== 'menu'} onStart={startGame} />

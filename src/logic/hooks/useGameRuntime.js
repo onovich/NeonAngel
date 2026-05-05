@@ -33,6 +33,8 @@ export function useGameRuntime() {
     snapshot,
     startGame: () => engineRef.current?.startGame(),
     restartGame: () => engineRef.current?.startGame(),
+    selectRewardOption: (index) => engineRef.current?.selectRewardOption(index),
+    confirmRewardSelection: () => engineRef.current?.confirmRewardSelection(),
     useUltimate: () => engineRef.current?.useUltimate(),
   };
 }

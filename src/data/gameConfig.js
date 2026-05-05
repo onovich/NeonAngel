@@ -60,6 +60,7 @@ export const GAME_CONFIG = {
   },
   feedback: {
     weaponToastMs: 2200,
+    rewardPauseInvincibleMs: 900,
   },
   dropsByDistance: [
     { maxDistance: 90, count: 4 },
@@ -262,4 +263,6 @@ export const INITIAL_SNAPSHOT = {
   weaponName: WEAPON_DEFS.lance.label,
   weaponLevel: 0,
   weaponToast: null,
+  rewardOptions: null,
+  rewardSelection: 0,
 };
