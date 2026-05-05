@@ -98,19 +98,17 @@ class Player {
     }
 
     if (input.touch.active) {
-      const deltaX = input.touch.currentX - input.touch.startX;
-      const deltaY = input.touch.currentY - input.touch.startY;
-      const drift = Math.hypot(deltaX, deltaY);
+      const moveDeltaX = input.touch.moveDeltaX;
+      const moveDeltaY = input.touch.moveDeltaY;
+      const drift = Math.hypot(moveDeltaX, moveDeltaY);
 
       if (drift > GAME_CONFIG.player.touchDeadzone) {
-        const normalizedX = deltaX / drift;
-        const normalizedY = deltaY / drift;
-        const intensity = clamp(drift / GAME_CONFIG.player.touchMaxDrift, 0, 1);
-        const speed = GAME_CONFIG.player.touchSpeed * intensity * (dt / 16);
-
-        this.x += normalizedX * speed;
-        this.y += normalizedY * speed;
+        this.x += moveDeltaX * GAME_CONFIG.player.touchMoveScale;
+        this.y += moveDeltaY * GAME_CONFIG.player.touchMoveScale;
       }
+
+      input.touch.moveDeltaX = 0;
+      input.touch.moveDeltaY = 0;
     }
 
     this.x = clamp(this.x, this.r, width - this.r);
@@ -548,8 +546,12 @@ class GameEngine {
         identifier: null,
         startX: 0,
         startY: 0,
+        lastX: 0,
+        lastY: 0,
         currentX: 0,
         currentY: 0,
+        moveDeltaX: 0,
+        moveDeltaY: 0,
       },
     };
     this.player = new Player(this);
@@ -633,8 +635,12 @@ class GameEngine {
     this.input.touch.identifier = touch.identifier;
     this.input.touch.startX = touch.clientX;
     this.input.touch.startY = touch.clientY;
+    this.input.touch.lastX = touch.clientX;
+    this.input.touch.lastY = touch.clientY;
     this.input.touch.currentX = touch.clientX;
     this.input.touch.currentY = touch.clientY;
+    this.input.touch.moveDeltaX = 0;
+    this.input.touch.moveDeltaY = 0;
   }
 
   handleTouchMove(event) {
@@ -647,6 +653,10 @@ class GameEngine {
       return;
     }
 
+    this.input.touch.moveDeltaX += touch.clientX - this.input.touch.lastX;
+    this.input.touch.moveDeltaY += touch.clientY - this.input.touch.lastY;
+    this.input.touch.lastX = touch.clientX;
+    this.input.touch.lastY = touch.clientY;
     this.input.touch.currentX = touch.clientX;
     this.input.touch.currentY = touch.clientY;
   }
@@ -665,8 +675,12 @@ class GameEngine {
     this.input.touch.identifier = null;
     this.input.touch.startX = 0;
     this.input.touch.startY = 0;
+    this.input.touch.lastX = 0;
+    this.input.touch.lastY = 0;
     this.input.touch.currentX = 0;
     this.input.touch.currentY = 0;
+    this.input.touch.moveDeltaX = 0;
+    this.input.touch.moveDeltaY = 0;
   }
 
   handleKeyDown(event) {
@@ -975,8 +989,12 @@ class GameEngine {
     this.input.touch.identifier = null;
     this.input.touch.startX = 0;
     this.input.touch.startY = 0;
+    this.input.touch.lastX = 0;
+    this.input.touch.lastY = 0;
     this.input.touch.currentX = 0;
     this.input.touch.currentY = 0;
+    this.input.touch.moveDeltaX = 0;
+    this.input.touch.moveDeltaY = 0;
     this.emitSnapshot();
   }
 
