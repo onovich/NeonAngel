@@ -221,11 +221,15 @@ class PlayerBullet {
     ctx.beginPath();
 
     if (isCancelingActive) {
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowBlur = 15;
+      ctx.fillStyle = '#CFF8FF';
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = Math.max(2, this.r * 0.28);
+      ctx.shadowBlur = 18;
       ctx.shadowColor = this.color;
     } else {
       ctx.fillStyle = this.color;
+      ctx.strokeStyle = 'transparent';
+      ctx.lineWidth = 0;
       ctx.shadowBlur = 0;
     }
 
@@ -236,7 +240,11 @@ class PlayerBullet {
     }
 
     ctx.fill();
+    if (isCancelingActive) {
+      ctx.stroke();
+    }
     ctx.shadowBlur = 0;
+    ctx.lineWidth = 0;
   }
 }
 
