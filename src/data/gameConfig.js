@@ -1,5 +1,5 @@
 export const COLORS = {
-  bg: '#F4F7FB',
+  bg: '#E8EEF5',
   player: '#63D5C4',
   playerAura: '#E9FF8F',
   playerBullet: '#2FCBFF',
