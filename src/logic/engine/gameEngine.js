@@ -288,6 +288,7 @@ class Enemy {
         this.vy = rand(1.6, 3);
         this.vx = rand(-0.9, 0.9);
         this.scoreValue = 10;
+        this.experienceValue = GAME_CONFIG.progression.normalKillXp;
         break;
       case 'obstacle':
         this.w = 40;
@@ -299,6 +300,7 @@ class Enemy {
         this.vy = 3;
         this.vx = 0;
         this.scoreValue = 0;
+        this.experienceValue = 0;
         break;
       case 'elite':
         this.r = 25;
@@ -308,6 +310,7 @@ class Enemy {
         this.vy = 1.4;
         this.vx = rand(-1.4, 1.4);
         this.scoreValue = 80;
+        this.experienceValue = GAME_CONFIG.progression.eliteKillXp;
         break;
       case 'boss':
         this.r = 60;
@@ -319,6 +322,7 @@ class Enemy {
         this.targetY = 150;
         this.scoreValue = 500;
         this.phase = 1;
+        this.experienceValue = GAME_CONFIG.progression.bossKillXp;
         break;
       default:
         break;
@@ -517,6 +521,12 @@ class GameEngine {
     this.frameCount = 0;
     this.levelTime = 0;
     this.score = 0;
+    this.progression = {
+      level: 0,
+      xp: 0,
+      pendingLevelUps: 0,
+      nextLevelXp: GAME_CONFIG.progression.baseLevelXp,
+    };
     this.arsenal = {
       currentWeapon: 'lance',
       rewardCursor: 1,
@@ -671,6 +681,10 @@ class GameEngine {
       return;
     }
 
+    this.resetTouchInput();
+  }
+
+  resetTouchInput() {
     this.input.touch.active = false;
     this.input.touch.identifier = null;
     this.input.touch.startX = 0;
@@ -801,6 +815,9 @@ class GameEngine {
       hp: this.player.hp,
       maxHp: this.player.maxHp,
       score: this.score,
+      level: this.progression.level,
+      xp: this.progression.xp,
+      nextLevelXp: this.progression.nextLevelXp,
       energy: this.player.energy,
       finalScore: this.finalScore,
       weaponName: currentWeapon.label,
@@ -842,7 +859,32 @@ class GameEngine {
     };
   }
 
-  queueEliteReward() {
+  getNextLevelXp(level) {
+    return GAME_CONFIG.progression.baseLevelXp + level * GAME_CONFIG.progression.levelXpStep;
+  }
+
+  addExperience(amount) {
+    if (amount <= 0) {
+      return;
+    }
+
+    this.progression.xp += amount;
+
+    while (this.progression.xp >= this.progression.nextLevelXp) {
+      this.progression.xp -= this.progression.nextLevelXp;
+      this.progression.level += 1;
+      this.progression.pendingLevelUps += 1;
+      this.progression.nextLevelXp = this.getNextLevelXp(this.progression.level);
+    }
+
+    if (!this.pendingReward && this.progression.pendingLevelUps > 0) {
+      this.queueLevelReward();
+    } else {
+      this.emitSnapshot();
+    }
+  }
+
+  queueLevelReward() {
     const currentWeaponId = this.arsenal.currentWeapon;
     const candidates = WEAPON_ORDER
       .map((weaponId) => ({
@@ -868,7 +910,9 @@ class GameEngine {
       options: optionWeaponIds.map((weaponId) => this.buildRewardOption(weaponId)),
       selectionIndex: 0,
     };
+    this.progression.pendingLevelUps = Math.max(0, this.progression.pendingLevelUps - 1);
     this.player.invincibleTime = Math.max(this.player.invincibleTime, GAME_CONFIG.feedback.rewardPauseInvincibleMs);
+    this.resetTouchInput();
     this.emitSnapshot();
   }
 
@@ -908,7 +952,12 @@ class GameEngine {
     }
     const option = this.pendingReward.options[this.pendingReward.selectionIndex];
     this.pendingReward = null;
+    this.resetTouchInput();
     this.applyRewardOption(option);
+    if (this.progression.pendingLevelUps > 0) {
+      this.queueLevelReward();
+      return;
+    }
     this.emitSnapshot();
   }
 
@@ -971,6 +1020,10 @@ class GameEngine {
     this.finalScore = 0;
     this.frameCount = 0;
     this.levelTime = 0;
+    this.progression.level = 0;
+    this.progression.xp = 0;
+    this.progression.pendingLevelUps = 0;
+    this.progression.nextLevelXp = GAME_CONFIG.progression.baseLevelXp;
     this.weaponToast = null;
     this.pendingReward = null;
     this.arsenal.currentWeapon = 'lance';
@@ -985,16 +1038,7 @@ class GameEngine {
     this.input.keyboard.left = false;
     this.input.keyboard.right = false;
     this.input.keyboard.active = false;
-    this.input.touch.active = false;
-    this.input.touch.identifier = null;
-    this.input.touch.startX = 0;
-    this.input.touch.startY = 0;
-    this.input.touch.lastX = 0;
-    this.input.touch.lastY = 0;
-    this.input.touch.currentX = 0;
-    this.input.touch.currentY = 0;
-    this.input.touch.moveDeltaX = 0;
-    this.input.touch.moveDeltaY = 0;
+    this.resetTouchInput();
     this.emitSnapshot();
   }
 
@@ -1006,7 +1050,7 @@ class GameEngine {
   gameOver() {
     this.screen = 'over';
     this.finalScore = this.score;
-    this.input.touch.active = false;
+    this.resetTouchInput();
     this.emitSnapshot();
   }
 
@@ -1260,9 +1304,7 @@ class GameEngine {
         this.createParticles(enemy.x, enemy.y, enemy.color, enemy.type === 'boss' ? 50 : 10);
         this.score += enemy.scoreValue;
         this.player.energy += enemy.type === 'boss' ? GAME_CONFIG.scoring.bossKillEnergy : GAME_CONFIG.scoring.normalKillEnergy;
-        if (enemy.type === 'elite') {
-          this.queueEliteReward();
-        }
+        this.addExperience(enemy.experienceValue);
         this.applyDropRewards(enemy);
         this.enemies.splice(i, 1);
         this.emitSnapshot();

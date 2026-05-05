@@ -40,6 +40,13 @@ export const GAME_CONFIG = {
     parryEnergy: 1,
     maxEnergy: 300,
   },
+  progression: {
+    normalKillXp: 10,
+    eliteKillXp: 45,
+    bossKillXp: 90,
+    baseLevelXp: 100,
+    levelXpStep: 80,
+  },
   ultimate: {
     cost: 100,
     damagePerFrame: 160,
@@ -257,6 +264,9 @@ export const INITIAL_SNAPSHOT = {
   hp: GAME_CONFIG.player.maxHp,
   maxHp: GAME_CONFIG.player.maxHp,
   score: 0,
+  level: 0,
+  xp: 0,
+  nextLevelXp: GAME_CONFIG.progression.baseLevelXp,
   energy: 0,
   finalScore: 0,
   weaponName: WEAPON_DEFS.lance.label,

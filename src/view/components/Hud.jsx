@@ -2,6 +2,9 @@ export function Hud({
   hp,
   maxHp,
   score,
+  level,
+  xp,
+  nextLevelXp,
   energy,
   weaponName,
   weaponLevel,
@@ -13,6 +16,7 @@ export function Hud({
   onUseUltimate,
 }) {
   const hpRatio = Math.max(0, (hp / maxHp) * 100);
+  const xpRatio = nextLevelXp > 0 ? Math.max(0, Math.min(100, (xp / nextLevelXp) * 100)) : 0;
   const fullSlots = Math.floor(energy / 100);
   const hpClassName = hp >= maxHp
     ? 'bg-[#FDFFB6]'
@@ -33,7 +37,7 @@ export function Hud({
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#F8F9FA]/70 backdrop-blur-sm pointer-events-auto">
           <div className="w-[min(92vw,42rem)] rounded-[2rem] border border-white/60 bg-white/85 p-5 hud-shadow">
             <div className="text-center">
-              <div className="text-[11px] font-black uppercase tracking-[0.35em] text-[#9A8C98]">Elite Reward</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.35em] text-[#9A8C98]">Level Up</div>
               <div className="mt-2 text-xl font-black text-gray-800">Choose one upgrade</div>
               <div className="mt-1 text-sm font-bold text-gray-500">Keyboard: `1` / `2`, `Q` / `E`, `Enter`</div>
             </div>
@@ -83,6 +87,13 @@ export function Hud({
           </div>
           <div className="mt-2 text-xs font-bold uppercase tracking-wider text-gray-400">
             Score: <span className="text-lg text-gray-700">{score}</span>
+          </div>
+          <div className="mt-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+            Lv: <span className="text-sm text-gray-700">{level}</span>
+          </div>
+          <div className="mt-2 text-xs font-bold uppercase tracking-wider text-gray-400">EXP</div>
+          <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div className="h-full bg-[#5D8BFF] transition-all duration-200" style={{ width: `${xpRatio}%` }} />
           </div>
           <div className="mt-2 text-xs font-bold uppercase tracking-wider text-gray-400">
             Weapon: <span className="text-sm text-gray-700">{weaponName} Lv.{weaponLevel}</span>

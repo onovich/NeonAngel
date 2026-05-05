@@ -22,6 +22,9 @@ export function GameScreen() {
         hp={snapshot.hp}
         maxHp={snapshot.maxHp}
         score={snapshot.score}
+        level={snapshot.level}
+        xp={snapshot.xp}
+        nextLevelXp={snapshot.nextLevelXp}
         energy={snapshot.energy}
         weaponName={snapshot.weaponName}
         weaponLevel={snapshot.weaponLevel}
