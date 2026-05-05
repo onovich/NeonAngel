@@ -1,15 +1,15 @@
 export const COLORS = {
-  bg: '#F8F9FA',
-  player: '#A8E6CF',
-  playerAura: '#FDFFB6',
-  playerBullet: '#9BF6FF',
-  enemyMinion: '#FFADAD',
-  enemyElite: '#FFD6A5',
-  enemyBoss: '#BDB2FF',
-  enemyBullet: '#FFC6FF',
-  healthDrop: '#CAFFBF',
-  obstacle: '#9A8C98',
-  text: '#6C757D',
+  bg: '#F4F7FB',
+  player: '#63D5C4',
+  playerAura: '#E9FF8F',
+  playerBullet: '#2FCBFF',
+  enemyMinion: '#FF6B6B',
+  enemyElite: '#FF9F43',
+  enemyBoss: '#C850C0',
+  enemyBullet: '#FF3D81',
+  healthDrop: '#7CE38B',
+  obstacle: '#6D748C',
+  text: '#5C667A',
 };
 
 export const GAME_CONFIG = {
@@ -72,7 +72,7 @@ export const GAME_CONFIG = {
 export const WEAPON_DEFS = {
   lance: {
     label: 'Lance',
-    color: '#9BF6FF',
+    color: '#2FCBFF',
     levels: [
       {
         rateMs: 150,
@@ -128,7 +128,7 @@ export const WEAPON_DEFS = {
   },
   spread: {
     label: 'Bloom',
-    color: '#FFD6A5',
+    color: '#37E3B4',
     levels: [
       {
         rateMs: 185,
@@ -199,7 +199,7 @@ export const WEAPON_DEFS = {
   },
   pulse: {
     label: 'Pulse',
-    color: '#BDB2FF',
+    color: '#5D8BFF',
     levels: [
       {
         rateMs: 220,
