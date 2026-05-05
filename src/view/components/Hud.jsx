@@ -43,6 +43,11 @@ export function Hud({
                   key={`${option.weaponId}-${option.kind}`}
                   type="button"
                   onClick={() => onRewardSelect(index)}
+                  onTouchStart={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onRewardSelect(index);
+                  }}
                   onDoubleClick={onRewardConfirm}
                   className={`rounded-[1.5rem] border px-4 py-4 text-left transition ${rewardSelection === index ? 'border-[#9BF6FF] bg-[#9BF6FF]/15 shadow-[0_0_0_4px_rgba(155,246,255,0.18)]' : 'border-white/60 bg-white/70 hover:bg-white'}`}
                 >
@@ -56,6 +61,11 @@ export function Hud({
               <button
                 type="button"
                 onClick={onRewardConfirm}
+                onTouchStart={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onRewardConfirm();
+                }}
                 className="btn-glass rounded-full px-7 py-3 text-sm font-black uppercase tracking-[0.2em] text-gray-700"
               >
                 Confirm
