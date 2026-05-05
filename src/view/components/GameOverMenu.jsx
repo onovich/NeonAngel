@@ -9,6 +9,11 @@ export function GameOverMenu({ hidden, finalScore, onRestart }) {
         type="button"
         className="btn-glass rounded-full px-10 py-4 text-xl font-bold tracking-wide text-gray-700 hover:bg-white"
         onClick={onRestart}
+        onTouchStart={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onRestart();
+        }}
       >
         重新开始
       </button>

@@ -18,6 +18,11 @@ export function StartMenu({ hidden, onStart }) {
         type="button"
         className="btn-glass rounded-full px-10 py-4 text-xl font-bold tracking-wide text-gray-700 hover:bg-white"
         onClick={onStart}
+        onTouchStart={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onStart();
+        }}
       >
         开始游戏
       </button>
