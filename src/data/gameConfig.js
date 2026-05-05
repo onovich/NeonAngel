@@ -52,6 +52,14 @@ export const GAME_CONFIG = {
     obstacleScoreThreshold: 350,
     eliteScoreThreshold: 700,
     bossScoreStep: 2500,
+    minionMinFrames: 26,
+    obstacleMinFrames: 105,
+    eliteMinFrames: 150,
+    pressurePerMinute: 0.12,
+    pressurePerScore: 0.00006,
+  },
+  feedback: {
+    weaponToastMs: 2200,
   },
   dropsByDistance: [
     { maxDistance: 90, count: 4 },
@@ -253,4 +261,5 @@ export const INITIAL_SNAPSHOT = {
   finalScore: 0,
   weaponName: WEAPON_DEFS.lance.label,
   weaponLevel: 0,
+  weaponToast: null,
 };

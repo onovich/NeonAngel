@@ -1,4 +1,4 @@
-export function Hud({ hp, maxHp, score, energy, weaponName, weaponLevel, onUseUltimate }) {
+export function Hud({ hp, maxHp, score, energy, weaponName, weaponLevel, weaponToast, onUseUltimate }) {
   const hpRatio = Math.max(0, (hp / maxHp) * 100);
   const fullSlots = Math.floor(energy / 100);
   const hpClassName = hp >= maxHp
@@ -9,6 +9,13 @@ export function Hud({ hp, maxHp, score, energy, weaponName, weaponLevel, onUseUl
 
   return (
     <div id="ui-layer" className="absolute inset-0 flex flex-col justify-between p-4 pointer-events-none">
+      {weaponToast ? (
+        <div className="weapon-toast absolute left-1/2 top-24 -translate-x-1/2 rounded-full border border-white/60 bg-white/80 px-5 py-3 text-center backdrop-blur-md hud-shadow">
+          <div className="text-[10px] font-black uppercase tracking-[0.35em] text-[#9A8C98]">{weaponToast.title}</div>
+          <div className="mt-1 text-sm font-bold text-gray-700">{weaponToast.detail}</div>
+        </div>
+      ) : null}
+
       <div className="flex items-start justify-between pointer-events-auto">
         <div className="min-w-[150px] rounded-2xl bg-white/80 p-3 backdrop-blur-md hud-shadow">
           <div className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-400">HP</div>

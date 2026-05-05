@@ -23,6 +23,7 @@ export function GameScreen() {
         energy={snapshot.energy}
         weaponName={snapshot.weaponName}
         weaponLevel={snapshot.weaponLevel}
+        weaponToast={snapshot.weaponToast}
         onUseUltimate={useUltimate}
       />
       <StartMenu hidden={snapshot.screen !== 'menu'} onStart={startGame} />

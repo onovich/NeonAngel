@@ -58,8 +58,30 @@ canvas {
   box-shadow: 0 0 10px #9bf6ff;
 }
 
+.weapon-toast {
+  animation: toast-rise 2.2s cubic-bezier(.22, 1, .36, 1) both;
+}
+
 .shake {
   animation: shake 0.3s cubic-bezier(.36, .07, .19, .97) both;
+}
+
+@keyframes toast-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 14px) scale(0.96);
+  }
+
+  12%,
+  76% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.98);
+  }
 }
 
 @keyframes shake {

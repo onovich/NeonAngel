@@ -491,6 +491,7 @@ class GameEngine {
         pulse: 0,
       },
     };
+    this.weaponToast = null;
     this.input = {
       keyboard: {
         up: false,
@@ -714,7 +715,22 @@ class GameEngine {
       finalScore: this.finalScore,
       weaponName: currentWeapon.label,
       weaponLevel: currentWeapon.level,
+      weaponToast: this.weaponToast,
     });
+  }
+
+  getDifficultyPressure() {
+    const minutes = this.levelTime / 60000;
+    return 1 + minutes * GAME_CONFIG.spawning.pressurePerMinute + this.score * GAME_CONFIG.spawning.pressurePerScore;
+  }
+
+  triggerWeaponToast(title, detail) {
+    this.weaponToast = {
+      title,
+      detail,
+      expiresAt: Date.now() + GAME_CONFIG.feedback.weaponToastMs,
+    };
+    this.emitSnapshot();
   }
 
   getCurrentWeaponState() {
@@ -743,15 +759,24 @@ class GameEngine {
     const targetWeaponId = WEAPON_ORDER[this.arsenal.rewardCursor];
     this.arsenal.rewardCursor = (this.arsenal.rewardCursor + 1) % WEAPON_ORDER.length;
     this.arsenal.currentWeapon = targetWeaponId;
+    const weaponLabel = WEAPON_DEFS[targetWeaponId].label;
 
     if (!this.arsenal.unlocked[targetWeaponId]) {
       this.arsenal.unlocked[targetWeaponId] = true;
       this.arsenal.levels[targetWeaponId] = 1;
+      this.triggerWeaponToast('Weapon Shift', `${weaponLabel} unlocked`);
       return;
     }
 
     const maxLevel = WEAPON_DEFS[targetWeaponId].levels.length - 1;
     this.arsenal.levels[targetWeaponId] = Math.min(maxLevel, this.arsenal.levels[targetWeaponId] + 1);
+    const level = this.arsenal.levels[targetWeaponId];
+    if (level >= maxLevel) {
+      this.triggerWeaponToast('Weapon Maxed', `${weaponLabel} Lv.${level}`);
+      return;
+    }
+
+    this.triggerWeaponToast('Weapon Upgrade', `${weaponLabel} Lv.${level}`);
   }
 
   triggerShake(duration) {
@@ -777,6 +802,7 @@ class GameEngine {
     this.finalScore = 0;
     this.frameCount = 0;
     this.levelTime = 0;
+    this.weaponToast = null;
     this.arsenal.currentWeapon = 'lance';
     this.arsenal.rewardCursor = 1;
     this.arsenal.unlocked.lance = true;
@@ -830,15 +856,29 @@ class GameEngine {
   }
 
   spawnLogic() {
-    if (this.frameCount % GAME_CONFIG.spawning.minionEveryFrames === 0) {
+    const pressure = this.getDifficultyPressure();
+    const minionEveryFrames = Math.max(
+      GAME_CONFIG.spawning.minionMinFrames,
+      Math.floor(GAME_CONFIG.spawning.minionEveryFrames / pressure),
+    );
+    const obstacleEveryFrames = Math.max(
+      GAME_CONFIG.spawning.obstacleMinFrames,
+      Math.floor(GAME_CONFIG.spawning.obstacleEveryFrames / pressure),
+    );
+    const eliteEveryFrames = Math.max(
+      GAME_CONFIG.spawning.eliteMinFrames,
+      Math.floor(GAME_CONFIG.spawning.eliteEveryFrames / pressure),
+    );
+
+    if (this.frameCount % minionEveryFrames === 0) {
       this.enemies.push(new Enemy(this, 'minion', rand(50, this.width - 50), -30));
     }
 
-    if (this.score > GAME_CONFIG.spawning.obstacleScoreThreshold && this.frameCount % GAME_CONFIG.spawning.obstacleEveryFrames === 0) {
+    if (this.score > GAME_CONFIG.spawning.obstacleScoreThreshold && this.frameCount % obstacleEveryFrames === 0) {
       this.enemies.push(new Enemy(this, 'obstacle', rand(50, this.width - 50), -50));
     }
 
-    if (this.score > GAME_CONFIG.spawning.eliteScoreThreshold && this.frameCount % GAME_CONFIG.spawning.eliteEveryFrames === 0) {
+    if (this.score > GAME_CONFIG.spawning.eliteScoreThreshold && this.frameCount % eliteEveryFrames === 0) {
       this.enemies.push(new Enemy(this, 'elite', rand(50, this.width - 50), -40));
     }
 
@@ -880,6 +920,10 @@ class GameEngine {
 
     this.frameCount += 1;
     this.levelTime += dt;
+    if (this.weaponToast && Date.now() >= this.weaponToast.expiresAt) {
+      this.weaponToast = null;
+      this.emitSnapshot();
+    }
     this.player.update(dt);
     this.spawnLogic();
 
